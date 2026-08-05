@@ -29,7 +29,7 @@
 | 마스터 콘솔 | `apps/console/` | 3001 | Next.js — 가입 심사·모듈 프로비저닝·플랫폼 운영 |
 | 현장 PWA | `apps/field/` | 3002 | Next.js PWA — 리딤/스캔 |
 | 공유 패키지 | `packages/{db,domain,contracts,ui,config}` | — | 스키마·도메인 로직·API 타입·디자인 시스템 |
-| DB | `supabase/` | 54322 | Supabase (Postgres 16) — 마이그레이션·RLS 정책·시드 |
+| DB | `supabase/` | 54322 | Supabase (Postgres 17) — 마이그레이션·RLS 정책·시드 |
 
 ### 기술 스택
 
@@ -37,7 +37,7 @@
 - **런타임**: Node.js 22 LTS 이상
 - **모노레포**: pnpm workspaces + Turborepo
 - **백엔드**: NestJS (Fastify 어댑터), Zod 검증 — **상시 기동 컨테이너**(서버리스 아님)
-- **DB**: **Supabase (Postgres 16)** — Auth / Storage / Realtime / RLS + **읽기 복제본(Read Replica)**
+- **DB**: **Supabase (Postgres 17)** — Auth / Storage / Realtime / RLS + **읽기 복제본(Read Replica)**
 - **DB 접근**: Drizzle ORM (SQL-first) + 마이그레이션은 Supabase CLI SQL 파일
 - **DB 커넥션**: **직결(5432) + 앱측 커넥션 풀**. 상시 컨테이너이므로 prepared statement 를 유지한다
   (Supavisor transaction mode(6543)는 prepared statement 미지원 — 서버리스 전용)
