@@ -196,6 +196,26 @@ OCTO Availability 응답에서 내부 장애를 **빈 가용성/NO_AVAILABILITY�
 - 루프 중 **테스트를 약화시키거나 삭제해서 통과시키는 행위 금지**
 - 매 반복마다 "무엇이 실패했고, 원인 가설이 무엇이며, 무엇을 바꿨는지" 1줄로 기록한다
 
+### 15. Git Workflow (MANDATORY)
+`main` 직접 커밋 금지. 모든 작업은 **기능 브랜치 → PR → 리뷰 → 머지**로 진행한다.
+
+- **브랜치 네이밍**: `<type>/<기능ID-또는-요약>`
+  - `feat/PLT-03-signup-survey` · `fix/INV-1-freesale-soldout` · `chore/ci-setup`
+  - type: `feat` / `fix` / `refactor` / `chore` / `docs` / `test`
+- **작업 시작 시**: `git switch main && git pull` 후 브랜치를 새로 딴다 (오래된 base 금지)
+- **커밋 메시지**: `<type>: <요약>` + 본문에 **근거 문서·기능 ID** 명시
+  ```
+  feat: 가입 설문 모듈 자동 추천 로직
+
+  docs/08 §3.2 STEP 2~4 체크박스 응답 → 모듈 매핑 규칙 구현 (PLT-03).
+  의존성 해석 포함(INV-* 영향 없음).
+  ```
+- **PR 본문 필수 항목**: 근거 문서·기능 ID / 변경 요약 / **불변식 영향(INV-*)** / 검증 결과(`pnpm verify`) / 마이그레이션 유무
+- **머지 조건**: `pnpm verify` 통과 + 파이프라인 5단계 완료 + 리뷰 승인
+- **머지 방식**: Squash merge (기능 단위 1커밋), 머지 후 브랜치 삭제
+- **금지**: `main` 직접 push, `--force` push(공유 브랜치), 훅 우회(`--no-verify`)
+- 마이그레이션이 포함된 PR은 **파괴적 변경 여부를 본문 상단에 명시**한다
+
 ---
 
 ## Coding Principles
