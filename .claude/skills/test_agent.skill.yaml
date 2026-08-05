@@ -1,0 +1,55 @@
+name: "TestAgent"
+description: "Vitest/Supertest + Supabase 로컬 스택 기반 테스트 작성 및 실행"
+instructions: |
+  # 핵심 원칙
+  - Mock 최소화, 실제 동작 검증 원칙. DB 는 Supabase 로컬 스택(Docker) 실인스턴스 사용
+  - 단위 테스트보다 흐름 검증 우선 (API 호출 → 재고 차감 → 상태 전이 → 로그 기록)
+  - describe/it 구조로 Given-When-Then 흐름 표현
+  - 파일명: *.test.ts / *.spec.ts 규칙 준수
+  - 테스트명은 시나리오를 설명하도록 작성
+    (예: should_reject_hold_when_slot_capacity_exhausted,
+         should_return_403_when_module_not_entitled)
+  - 빈 테스트 금지 — 실제 검증 로직 필수
+
+  # 반드시 존재해야 하는 테스트 (도메인 회귀 방지)
+  - [INV-1] 동시성: 잔여 1석에 N개 홀드 요청 동시 실행 → 정확히 1건만 성공
+  - [INV-1] FREESALE: capacity IS NULL 슬롯은 대량 차감에도 매진되지 않음
+  - [INV-2] 멱등성: 동일 idempotency_key 로 예약 2회 요청 → 예약 1건, 재고 1회만 차감
+  - [INV-3] 스냅샷: 예약 후 PriceRule 변경 → 기존 예약 금액 불변
+  - [INV-4] 우선순위: 특정일/시간대/채널+요일/요일/시즌/기본 룰이 모두 매칭될 때
+           특정일 룰이 선택됨 (6단계 각각 케이스)
+  - [INV-5] 격리: 테넌트 A 토큰으로 테넌트 B 리소스 조회 → 0건 또는 404 (RLS 직접 검증 포함)
+  - [INV-6] 게이팅: 미개통 모듈 API 호출 → 403
+  - [INV-7] 상태머신: 허용되지 않은 전이(예: REDEEMED → CONFIRMED) → 거부 + 로그 미기록 아님
+  - [INV-8] 타임존: 시설 타임존이 다른 두 테넌트의 동일 local_date 슬롯이 서로 간섭하지 않음
+  - [INV-9] 번들: 구성품 2개 중 두 번째 차감 실패 → 첫 번째 차감도 롤백(held_count 원복)
+  - [INV-10] 금액: 커미션·환불액 계산이 정수 minor unit 으로 오차 없이 산출
+  - [INV-11] 게이트웨이: 내부 예외 발생 시 OCTO availability 응답이 5xx (빈 배열 아님)
+  - 홀드 만료: hold_expires_at 경과 후 배치 실행 → held_count 회수, 상태 EXPIRED
+
+  # 상품 케이스 테스트
+  - docs/07 의 케이스를 구현할 때는 해당 케이스 번호를 테스트 describe 명에 포함
+    (예: describe('T4 Q-Pass — 일자별 한정수량', ...))
+  - 최소 대표 케이스: T1(시간대 Option 분리), T4(선착순 원자 차감), S1(좌석등급 zone),
+    T7(리딤 시점 차감), B1(혼합 재고 번들), E2(기간 점유 렌탈)
+
+  # 테스트 패턴
+  - API 통합: Vitest + Supertest (실제 Nest 앱 인스턴스에 HTTP 요청)
+  - 도메인 순수 로직(가격 해석·정책 계산): 순수 단위 테스트, DB 불필요
+  - 프론트 컴포넌트: Vitest + @testing-library/react
+  - 동시성 테스트: Promise.all 로 병렬 요청 후 성공 건수·최종 카운트 assert
+
+  # 데이터 전략
+  - `supabase db reset` 또는 트랜잭션 롤백으로 테스트 격리 보장
+  - beforeEach 로 테넌트·상품·슬롯 픽스처 준비, afterEach 로 정리
+  - 외부 채널 API 는 nock/msw 로 스텁. Supabase DB 는 스텁하지 않는다 (RLS 검증 필요)
+  - NODE_ENV=test 로 독립 동작, CI 에서도 동일하게 실행
+
+  # 커버리지 목표
+  - packages/domain (재고·가격·상태머신): 90%+
+  - apps/api 라우트: 75%+
+  - apps/octo-gateway: 85%+ (외부 계약이므로 높게)
+
+  # 금지 사항
+  - 통과시키기 위한 단언 완화·skip·삭제 금지
+  - 도메인 규칙을 테스트에 맞춰 바꾸는 행위 금지 (반대 방향만 허용)

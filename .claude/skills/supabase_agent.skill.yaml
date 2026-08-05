@@ -1,0 +1,56 @@
+name: "SupabaseAgent"
+description: "Supabase 마이그레이션·RLS 정책·Auth 클레임 설계 및 검증"
+instructions: |
+  # 마이그레이션 규칙
+  - 스키마 변경은 supabase/migrations/ 의 SQL 파일로만 수행 (대시보드 수기 변경 금지)
+  - 파일 생성: `supabase migration new <snake_case_name>`
+  - 마이그레이션은 전진 전용(forward-only). 적용 완료된 파일은 수정하지 않고 새 파일로 보정
+  - 파괴적 변경(DROP COLUMN/TABLE, 타입 축소, NOT NULL 추가)은 사전 보고 후 진행
+  - 컬럼 추가는 nullable 또는 DEFAULT 동반 (배포 중 무중단 보장)
+  - 로컬 검증: `supabase db reset` 으로 전체 마이그레이션 재적용 + 시드 성공 확인
+
+  # RLS 정책 규칙 (INV-5)
+  - 테넌트 데이터 테이블은 예외 없이:
+      1) tenant_id uuid NOT NULL REFERENCES tenant(id)
+      2) alter table <t> enable row level security;
+      3) tenant_isolation 정책 (select/insert/update/delete 커버)
+    세 가지를 **같은 마이그레이션 파일 안에서** 작성한다
+  - 테넌트 식별은 JWT 클레임 기준:
+      (auth.jwt() -> 'app_metadata' ->> 'tenant_id')::uuid
+    클라이언트가 조작 가능한 user_metadata 사용 금지
+  - INSERT 정책은 WITH CHECK 로 tenant_id 위조를 차단한다
+  - 마스터 콘솔 전용 테이블(ModuleCatalog, PlatformAuditLog 등)은 테넌트 역할로 접근 불가하도록 정책 작성
+  - RLS 를 우회하는 SECURITY DEFINER 함수는 원칙적으로 금지. 불가피하면 사유를 주석으로 남기고
+    search_path 를 고정하며 사용자 승인을 받는다
+  - 신규 테이블 추가 후에는 "RLS 미적용 테이블 0건" 을 쿼리로 확인한다:
+      select relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
+       where n.nspname='public' and c.relkind='r' and not c.relrowsecurity;
+
+  # 키 / 접근 경로 규칙
+  - anon key: 브라우저 노출 가능. 반드시 RLS 로 보호되는 경로에서만 사용
+  - service_role key: 서버 전용. 클라이언트 번들·NEXT_PUBLIC_*·로그·에러 응답에 절대 노출 금지
+  - service_role 로 접근하는 서버 코드는 RLS 를 우회하므로, 애플리케이션 레벨 tenant_id 스코프를
+    반드시 함께 적용한다 (격리 이중화)
+  - 커넥션은 Supavisor 풀러(transaction mode) 경유. 애플리케이션 풀 크기와 요금제 상한을 함께 검토
+
+  # 인덱스 / 성능
+  - 조회 패턴 기준 인덱스: (tenant_id, product_id, local_date), (tenant_id, status, service_date)
+  - RLS 정책 조건 컬럼(tenant_id)에 인덱스 필수 — 없으면 전 테이블 스캔 유발
+  - 재고 차감 대상 행은 단건 PK 갱신이 되도록 설계 (핫 로우 경합 최소화)
+
+  # 제약 조건
+  - 멱등성: idempotency_key 에 UNIQUE 제약 (INV-2)
+  - 재고 음수 방지: CHECK (booked_count >= 0 AND held_count >= 0)
+  - 금액: integer + currency char(3) (INV-10). numeric/float 금액 컬럼 금지
+  - 시각: local_date date, local_start_time time, timezone text (INV-8).
+    timestamptz 로 슬롯 시각을 대체하지 않는다
+
+  # Auth
+  - 테넌트 소속·역할은 회원가입/승인 시 app_metadata 에 기록하고 JWT 클레임으로 전달
+  - 역할: MASTER_ADMIN / MASTER_OPS / MASTER_ENGINEER / TENANT_OWNER / TENANT_MANAGER /
+         TENANT_FINANCE / TENANT_STAFF (docs/08 §1)
+  - 채널 파트너 인증은 Supabase Auth 가 아닌 ApiPartnerKey 로 분리 (OCTO 게이트웨이 별도 인증)
+
+  # 결과 보고
+  - 마이그레이션 파일 목록, RLS 적용 여부 표, 인덱스 추가 내역을 보고
+  - RLS 누락·service_role 노출 발견 시 즉시 중단하고 보고

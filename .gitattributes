@@ -1,0 +1,14 @@
+# 저장소에는 LF 로 저장한다 — Windows/macOS/Linux 혼용 시 줄바꿈 diff 오염 방지.
+* text=auto eol=lf
+
+# 실행 스크립트는 반드시 LF (CRLF 면 shebang 이 깨진다)
+*.sh   text eol=lf
+*.mjs  text eol=lf
+
+# 바이너리
+*.png  binary
+*.jpg  binary
+*.pdf  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary

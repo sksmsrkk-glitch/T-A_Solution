@@ -1,0 +1,47 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/pipeline_trigger.mjs",
+            "statusMessage": "파이프라인 트리거 감지 중..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/verify_hook.mjs",
+            "timeout": 60,
+            "statusMessage": "하네스 규칙 검증 중 (INV/시크릿/RLS/린트)..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{let c='';try{c=JSON.parse(s).tool_input.command||''}catch{};if(/pnpm\\s+(verify|test)|vitest|jest/.test(c))console.log('[testing] 검증 실행 감지 — 실패 시 loop_agent 루프(최대 3회)로 진입하세요.');else if(/supabase\\s+(db|migration)/.test(c))console.log('[schema] 마이그레이션 작업 감지 — supabase_agent 규칙(RLS 동시 작성·전진 전용)을 적용하세요.');else if(/git\\s+(push|commit)/.test(c))console.log('[quality] 커밋/푸시 감지 — quality_agent + security_agent 점검을 권장합니다.')})\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"console.log('[ta-solution] pipeline complete.')\""
+          }
+        ]
+      }
+    ]
+  }
+}

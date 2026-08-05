@@ -1,0 +1,134 @@
+version: 1
+project:
+  name: ta-solution
+  pipeline: ta-solution-pipeline
+  description: "투어&액티비티 모듈형 멀티테넌트 SaaS (TypeScript + NestJS + Next.js + Supabase)"
+
+default_skill: dev_agent
+language: ko
+
+context:
+  include:
+    - ./docs
+    - ./packages/domain/src
+    - ./packages/db/src
+    - ./packages/contracts/src
+    - ./apps/api/src
+    - ./apps/octo-gateway/src
+    - ./apps/portal/app
+    - ./apps/console/app
+    - ./supabase/migrations
+    - ./package.json
+    - ./pnpm-workspace.yaml
+    - ./turbo.json
+    - ./.claude/CLAUDE.md
+    - ./.claude/config.yaml
+    - ./.claude/pipeline.yaml
+    - ./.claude/triggers.yaml
+    - ./.claude/settings.json
+    - ./.claude/skills/SKILL.md
+    - ./.claude/skills/claude_init.skill.yaml
+    - ./.claude/skills/dev_agent.skill.yaml
+    - ./.claude/skills/domain_agent.skill.yaml
+    - ./.claude/skills/supabase_agent.skill.yaml
+    - ./.claude/skills/test_agent.skill.yaml
+    - ./.claude/skills/quality_agent.skill.yaml
+    - ./.claude/skills/security_agent.skill.yaml
+    - ./.claude/skills/loop_agent.skill.yaml
+  exclude:
+    - ./node_modules
+    - ./.next
+    - ./.turbo
+    - ./dist
+    - ./build
+    - ./coverage
+    - ./.git
+    - ./supabase/.branches
+    - ./supabase/.temp
+    - ./.claude/logs
+
+skills:
+  - name: dev_agent
+    path: skills/dev_agent.skill.yaml
+    triggers:
+      - "@triggers.develop"
+      - "NestJS"
+      - "Next.js"
+      - "구현"
+      - "CLAUDE.md 기준"
+
+  - name: domain_agent
+    path: skills/domain_agent.skill.yaml
+    triggers:
+      - "@triggers.domain"
+      - "재고"
+      - "오버부킹"
+      - "가격 룰"
+      - "상태머신"
+      - "불변식"
+      - "INV-"
+
+  - name: supabase_agent
+    path: skills/supabase_agent.skill.yaml
+    triggers:
+      - "@triggers.schema"
+      - "Supabase"
+      - "마이그레이션"
+      - "RLS"
+      - "스키마"
+
+  - name: test_agent
+    path: skills/test_agent.skill.yaml
+    triggers:
+      - "@triggers.test"
+      - "Vitest"
+      - "커버리지"
+
+  - name: quality_agent
+    path: skills/quality_agent.skill.yaml
+    triggers:
+      - "@triggers.review"
+      - "ESLint"
+      - "타입체크"
+      - "품질 검증"
+
+  - name: security_agent
+    path: skills/security_agent.skill.yaml
+    triggers:
+      - "@triggers.security"
+      - "인증"
+      - "인가"
+      - "테넌트 격리"
+      - "시크릿"
+
+  - name: loop_agent
+    path: skills/loop_agent.skill.yaml
+    triggers:
+      - "@triggers.loop"
+      - "실패"
+      - "재시도"
+      - "수정 루프"
+
+# 파이프라인 실행은 .claude/hooks/pipeline_trigger.mjs (UserPromptSubmit) +
+# settings.json 네이티브 훅으로 자동화됨 (Node 기반 — Windows/macOS/Linux 공통 동작)
+workflow:
+  pipeline_path: .claude/pipeline.yaml
+  mode: sequential
+  stop_on_failure: true
+  loop_on_failure: true
+  loop_max_iterations: 3
+  verify_command: "pnpm verify"
+  notifications:
+    success: "ta-solution pipeline success."
+    failure: "ta-solution pipeline failure."
+
+logging:
+  level: info
+  output: .claude/logs/claude.log
+  format: "[%(asctime)s] [%(levelname)s] %(message)s"
+
+feedback:
+  ask_before_edit: true
+  show_diff_on_change: true
+  require_confirmation_for_file_write: true
+  require_confirmation_for_migration: true

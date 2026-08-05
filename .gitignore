@@ -1,0 +1,43 @@
+# ─── 시크릿 (INV-5) ────────────────────────────────────────
+# service_role 키·DB 커넥션 문자열·채널 API 시크릿이 이력에 남으면 회수가 어렵다.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ─── 의존성 ────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ─── 빌드 산출물 ───────────────────────────────────────────
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# ─── 테스트·커버리지 ───────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Supabase 로컬 스택 ────────────────────────────────────
+supabase/.branches/
+supabase/.temp/
+supabase/logs/
+
+# ─── 로그 ──────────────────────────────────────────────────
+.claude/logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ─── 에디터·OS ─────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

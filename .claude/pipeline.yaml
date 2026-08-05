@@ -1,0 +1,124 @@
+version: "1"
+name: ta-solution-pipeline
+description: >
+  투어&액티비티 모듈형 멀티테넌트 SaaS (TypeScript + NestJS + Next.js + Supabase) 통합 개발 파이프라인.
+  dev_agent → domain_agent → test_agent → quality_agent → security_agent 순서로 실행되며,
+  각 단계 실패 시 loop_agent 규칙에 따라 자동 수정 루프(최대 3회)를 돈 뒤 미수렴 시 에스컬레이션한다.
+
+stages:
+  - name: development
+    description: "기능 개발 및 리팩터링"
+    skill: dev_agent
+    tasks:
+      - "근거 문서(docs/03·05·07·08)에서 기능 ID·케이스 번호 확인"
+      - "기존 모듈/파일 패턴 확인 후 구현 계획 제시 및 승인"
+      - "CLAUDE.md 규칙 + 불변식 INV-1~11 준수하여 코드 작성"
+      - "재고·가격·상태 분기에 근거 주석(// INV-*, // docs/07 §*) 명시"
+    on_success:
+      - trigger: domain
+    on_failure:
+      - enter_loop: loop_agent
+      - message: "dev_agent failure."
+
+  - name: domain
+    description: "도메인 불변식 검증 (오버부킹·가격룰·상태머신·테넌트 격리)"
+    skill: domain_agent
+    tasks:
+      - "재고: 원자적 조건부 UPDATE, capacity NULL(FREESALE), 번들 트랜잭션 원자성 (INV-1·9)"
+      - "가격: 스냅샷 불변, 우선순위 단일 구현, 정수 minor unit (INV-3·4·10)"
+      - "예약: 상태 전이표 준수, BookingLog 기록, 멱등키 UNIQUE (INV-2·7)"
+      - "SaaS: tenant_id + RLS 이중 격리, entitlement 서버 강제 (INV-5·6)"
+      - "시간·채널: 로컬시각 보존, 게이트웨이 장애 시 5xx (INV-8·11)"
+      - "docs/07 해당 케이스와 절차 대조"
+    on_success:
+      - trigger: testing
+    on_failure:
+      - enter_loop: loop_agent
+      - escalate_after: 1
+      - message: "domain_agent failure — 불변식 위반. 설계 충돌 가능성 검토 필요."
+
+  - name: testing
+    description: "테스트 작성 및 실행"
+    skill: test_agent
+    tasks:
+      - "Vitest 단위 테스트 + Supertest API 통합 테스트 작성"
+      - "Supabase 로컬 스택(Docker)에 대해 실행 — DB 스텁 금지"
+      - "불변식 회귀 테스트 필수 (동시성·멱등성·스냅샷·우선순위·격리·게이팅·상태머신·번들)"
+      - "pnpm test 통과 및 커버리지 확인 (domain 90%+ / api 75%+ / gateway 85%+)"
+    on_success:
+      - trigger: quality
+    on_failure:
+      - enter_loop: loop_agent
+      - message: "test_agent failure."
+
+  - name: quality
+    description: "품질 검증 및 코드 리뷰"
+    skill: quality_agent
+    tasks:
+      - "pnpm typecheck 오류 0 · pnpm lint 경고 0"
+      - "레이어 경계 검증 (packages/domain 이 Nest/Next/Supabase 를 import 하지 않음)"
+      - "패턴 일관성: 가드 체인 순서, @RequireModule, 파라미터 바인딩 SQL"
+      - "리팩터링 권장사항을 필수/권장/참고 등급으로 요약"
+    on_success:
+      - trigger: security
+    on_failure:
+      - enter_loop: loop_agent
+      - message: "quality_agent failure."
+
+  - name: security
+    description: "보안 점검 및 취약성 검증"
+    skill: security_agent
+    tasks:
+      - "RLS 미적용 테넌트 테이블 0건 확인, 정책 커버리지 검증"
+      - "시크릿 점검: service_role 키·NEXT_PUBLIC_* 노출, .env gitignore"
+      - "입력 검증(Zod)·SQL Injection·XSS·업로드 검증"
+      - "OCTO 파트너 키 인증 분리·웹훅 서명·rate limit 확인"
+      - "pnpm audit high 이상 취약점 확인"
+    on_success:
+      - message: "security_agent success — 파이프라인 완료."
+    on_failure:
+      - enter_loop: loop_agent
+      - message: "security_agent failure."
+
+# 루프 엔지니어링 설정
+loop:
+  skill: loop_agent
+  max_iterations: 3
+  verify_command: "pnpm verify"
+  record_format: "[loop N/3] FAIL:<신호> · CAUSE:<가설> · FIX:<변경> · RESULT:<pass|fail>"
+  escalate_when:
+    - "동일 원인 3회 실패"
+    - "실패 지점 순환(A 고치면 B 깨짐)"
+    - "불변식(INV-*) 위반 없이는 통과 불가"
+    - "설계 문서(docs/*) 변경 필요"
+    - "외부 요인(채널 스펙·계약·인프라 권한)"
+    - "파괴적 마이그레이션 또는 데이터 손실 필요"
+  forbidden_fixes:
+    - "테스트 단언 완화 / skip / 삭제"
+    - "any · as unknown as · @ts-ignore 로 타입 오류 은폐"
+    - "eslint-disable 로 규칙 비활성화"
+    - "RLS 비활성화 · service_role 우회"
+    - "원인 미파악 상태의 임의 변경(shotgun debugging)"
+
+rules:
+  stop_on_failure: true
+  require_approval_before_next_stage: true
+  logging:
+    level: info
+    output: .claude/logs/pipeline.log
+    format: "[%(asctime)s] [%(levelname)s] %(message)s"
+  notifications:
+    on_start: "ta-solution pipeline start."
+    on_complete: "ta-solution pipeline success."
+    on_failure: "ta-solution pipeline failure."
+
+# ===================================
+# Metadata
+# ===================================
+metadata:
+  project: "T&A Solution — 투어&액티비티 판매관리 SaaS"
+  team: "T&A Solution"
+  created: "2026-08-04"
+  updated: "2026-08-04"
+  version_tag: "v1.0.0"
+  benchmarked_from: "allmytour-webbooking-sys/.claude (amt-automation-pipeline v1.0.0)"
