@@ -192,6 +192,27 @@ export function resolvePrice(rules: PriceRule[], ctx: PriceContext): ResolvedPri
 }
 ```
 
+### 커넥션 선택 — 명시적으로 (INV-12)
+
+```ts
+// packages/db/src/client.ts
+// INV-12: 복제본은 비동기 복제라 지연이 있고 SELECT 전용이다.
+//         어느 커넥션을 쓰는지가 코드에서 바로 보여야 오류를 추적할 수 있다(Rule #10).
+export const primaryDb = drizzle(primaryPool); // 차감·상태 전이·정산
+export const replicaDb = drizzle(replicaPool ?? primaryPool); // 캘린더·리포트 (미설정 시 폴백)
+```
+
+```ts
+// 캘린더 = 탐색용 → 복제본 + 캐시 허용
+const calendar = await cache.getOrLoad(key, () => replicaDb.select()...);
+
+// 예약 직전 확인 = 재고 판단의 마지막 관문 → 프라이머리 필수
+const slot = await primaryDb.select()...;
+
+// 차감 = 캐시 값을 보고 판정하지 않는다. 프라이머리의 원자적 UPDATE 결과가 유일한 진실 (INV-1)
+const { rowCount } = await primaryDb.execute(holdSql);
+```
+
 ### 금액 — 정수 minor unit (INV-10)
 
 ```ts

@@ -36,14 +36,22 @@
 - **언어**: TypeScript (전 스택 단일 언어, `strict: true`)
 - **런타임**: Node.js 22 LTS 이상
 - **모노레포**: pnpm workspaces + Turborepo
-- **백엔드**: NestJS (Fastify 어댑터), Zod 검증
-- **DB**: **Supabase (Postgres 16)** — Auth / Storage / Realtime / RLS 사용
+- **백엔드**: NestJS (Fastify 어댑터), Zod 검증 — **상시 기동 컨테이너**(서버리스 아님)
+- **DB**: **Supabase (Postgres 16)** — Auth / Storage / Realtime / RLS + **읽기 복제본(Read Replica)**
 - **DB 접근**: Drizzle ORM (SQL-first) + 마이그레이션은 Supabase CLI SQL 파일
+- **DB 커넥션**: **직결(5432) + 앱측 커넥션 풀**. 상시 컨테이너이므로 prepared statement 를 유지한다
+  (Supavisor transaction mode(6543)는 prepared statement 미지원 — 서버리스 전용)
+- **캐시**: Redis — 가용성 캘린더 read-through 캐시 / 채널 rate limit
+- **잡/스케줄**: **2계층**
+  - `pg_cron` — 순수 SQL 배치(홀드 만료·노쇼). 네트워크 왕복 0, 앱 장애와 무관하게 동작
+  - **BullMQ + Redis** — 앱 로직이 필요한 작업(채널 웹훅 팬아웃·재시도 백오프)
 - **프론트**: Next.js (App Router) + React, TanStack Query, Tailwind + shadcn/ui
-- **잡/스케줄**: pg-boss (Postgres 기반, Phase 1) → 필요 시 Redis + BullMQ 전환
-- **테스트**: Vitest + Supertest + Supabase 로컬 스택(Docker)
+- **관측**: OpenTelemetry(트레이스·메트릭) + Sentry(에러). **성능 예산은 측정으로 검증한다**
+- **테스트**: Vitest + Supertest + Supabase 로컬 스택(Docker) + k6(부하)
 - **품질**: ESLint(flat config) + Prettier + `tsc --noEmit`
 - **CI**: GitHub Actions
+
+> **배포 원칙**: 앱은 **Supabase 프로젝트와 동일 리전**에 배포한다. 예약 요청 1건은 DB를 여러 번 왕복하므로 리전 간 거리가 그대로 p99에 곱해진다. 리전이 다른 배포처(예: Seoul DB ↔ Tokyo 앱)는 선택하지 않는다.
 
 ### 주요 명령어
 
@@ -70,7 +78,7 @@ pnpm verify                   # typecheck + lint + test (루프 종료 판정 �
 
 ## 도메인 불변식 (Non-negotiable Invariants)
 
-아래 11개는 **어떤 이유로도 위반 금지**다. 위반하는 코드는 작성하지 않고, 발견 시 즉시 보고한다.
+아래 12개는 **어떤 이유로도 위반 금지**다. 위반하는 코드는 작성하지 않고, 발견 시 즉시 보고한다.
 
 ### INV-1. 오버부킹 금지 — 재고 차감은 원자적 조건부 UPDATE
 `SELECT`로 잔여를 확인한 뒤 `UPDATE` 하는 2단계 패턴 **금지**. 반드시 단일 조건부 UPDATE로 차감하고, 영향 행 수 0이면 매진으로 처리한다.
@@ -114,6 +122,19 @@ UPDATE availability_slot
 
 ### INV-11. 게이트웨이 장애 시 5xx
 OCTO Availability 응답에서 내부 장애를 **빈 가용성/NO_AVAILABILITY로 변환 금지**. 반드시 5xx를 반환한다. (채널이 상품을 자동 비활성화하는 사고 방지 — `docs/05` 참조)
+
+### INV-12. 캐시·읽기 복제본은 예약 확정 경로의 진실이 아니다
+성능을 위해 도입한 읽기 복제본(비동기 복제 = **지연 존재**)과 Redis 캐시(**TTL 동안 stale**)는 **탐색용 읽기에만** 쓴다.
+
+| 경로 | 소스 | 이유 |
+|---|---|---|
+| 캘린더 조회 · 상품 탐색 | 복제본 / 캐시 허용 | 조금 늦어도 사고가 아니다 |
+| **예약 직전 `availability/check`** | **프라이머리 필수** | 재고 판단의 마지막 관문 |
+| **재고 차감 · 예약 상태 전이 · 정산** | **프라이머리 필수** | 지연·stale 은 오버부킹·오청구가 된다 |
+
+- 재고 차감은 언제나 프라이머리에서 원자적 UPDATE 로 최종 판정한다 (INV-1). **캐시 값을 보고 차감 여부를 결정하지 않는다.**
+- 캐시는 read-through + **도메인 이벤트 기반 무효화**. TTL 만료에만 의존하지 않는다.
+- 트랜잭션 안에서 복제본을 읽지 않는다(같은 트랜잭션 내 read-your-write 깨짐).
 
 ---
 
@@ -215,6 +236,23 @@ OCTO Availability 응답에서 내부 장애를 **빈 가용성/NO_AVAILABILITY�
 - **머지 방식**: Squash merge (기능 단위 1커밋), 머지 후 브랜치 삭제
 - **금지**: `main` 직접 push, `--force` push(공유 브랜치), 훅 우회(`--no-verify`)
 - 마이그레이션이 포함된 PR은 **파괴적 변경 여부를 본문 상단에 명시**한다
+
+### 16. Performance Budget (MANDATORY)
+성능은 "빠르게 짜자"는 태도가 아니라 **숫자와 측정**으로 관리한다. 아래 예산을 넘기면 기능이 완성돼도 미완료로 본다.
+
+| 엔드포인트 | p95 | p99 | 비고 |
+|---|---|---|---|
+| OCTO `availability/calendar` | 200ms | 400ms | 최대 트래픽. 복제본 + 캐시 + 사전계산 전제 |
+| OCTO `availability/check` | 100ms | 200ms | **프라이머리 조회** (INV-12) |
+| 예약 생성(홀드) | 150ms | 300ms | 단일 조건부 UPDATE 경로 |
+| 포털 화면 API | 300ms | 600ms | |
+
+- **N+1 쿼리 금지**. 옵션·Unit·가격 룰은 배치 조회하거나 사전계산 테이블에서 읽는다
+- 가용성 캘린더는 요청 시점에 가격 룰을 전수 해석하지 않는다 — **사전계산 프로젝션 + 이벤트 기반 갱신**
+- 새 쿼리를 추가하면 `EXPLAIN (ANALYZE, BUFFERS)`로 인덱스 사용을 확인한다. Seq Scan 발견 시 인덱스 추가 또는 사유 기록
+- 재고 슬롯은 **단건 PK 갱신**이 되게 설계한다(핫 로우 경합 최소화). 범위 UPDATE 금지
+- 성능 주장은 측정 없이 하지 않는다 — 부하 테스트(k6) 또는 트레이스 근거를 PR에 첨부
+- 최적화 전에 측정한다(Rule #5). 단, **위 예산은 사후 최적화 대상이 아니라 설계 제약**이다
 
 ---
 
