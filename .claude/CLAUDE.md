@@ -53,6 +53,22 @@
 
 > **배포 원칙**: 앱은 **Supabase 프로젝트와 동일 리전**에 배포한다. 예약 요청 1건은 DB를 여러 번 왕복하므로 리전 간 거리가 그대로 p99에 곱해진다. 리전이 다른 배포처(예: Seoul DB ↔ Tokyo 앱)는 선택하지 않는다.
 
+### 배포 환경 (확정)
+
+| 항목 | 값 |
+|---|---|
+| DB | Supabase **Seoul** (Pro + compute 애드온 — 읽기 복제본 사용) |
+| 앱 | **GCP Cloud Run `asia-northeast3`(서울)** |
+| 캐시/큐 | Memorystore(Redis) `asia-northeast3` + Serverless VPC Access — 간이 대안은 Upstash |
+| CI/CD | GitHub Actions → Artifact Registry → Cloud Run |
+
+**Cloud Run 필수 설정** (지키지 않으면 성능·정합성이 무너진다)
+
+- **`--min-instances >= 1`** — 콜드 스타트는 채널 타임아웃 → 상품 자동 비활성화로 이어진다 (INV-11)
+- **워커는 별도 서비스로 분리하고 CPU always allocated** — Cloud Run은 기본적으로 요청 처리 중에만 CPU를 준다. BullMQ 워커를 API 서비스에 얹으면 요청이 없는 동안 잡이 멈춘다
+- **`--concurrency` × 인스턴스 수 ≥ DB 풀 크기 정합** — 풀 총합이 Supabase compute 등급의 커넥션 상한을 넘지 않게 산정한다
+- **DB 커넥션은 Supavisor `session` mode(5432)** — Supabase 직결은 IPv6 기본이고 Cloud Run 이그레스는 IPv4 경로가 일반적이다. **session mode 는 prepared statement 를 지원**하므로 성능 손실 없이 IPv4 문제를 해결한다. (금지 대상은 prepared statement 를 못 쓰는 `transaction` mode(6543)뿐이다)
+
 ### 주요 명령어
 
 ```bash
