@@ -1,5 +1,5 @@
-name: "TestAgent"
-description: "Vitest/Supertest + Supabase 로컬 스택 기반 테스트 작성 및 실행"
+name: 'TestAgent'
+description: 'Vitest/Supertest + Supabase 로컬 스택 기반 테스트 작성 및 실행'
 instructions: |
   # 핵심 원칙
   - Mock 최소화, 실제 동작 검증 원칙. DB 는 Supabase 로컬 스택(Docker) 실인스턴스 사용

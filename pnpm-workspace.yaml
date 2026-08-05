@@ -1,0 +1,9 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm 11 은 의존성의 설치 스크립트를 기본 차단한다(공급망 공격 완화).
+# 실행이 꼭 필요한 것만 명시적으로 허용한다.
+allowBuilds:
+  esbuild: true # Vitest 의 트랜스파일러 — 네이티브 바이너리 배치에 필요
+  supabase: true # Supabase CLI 바이너리 다운로드

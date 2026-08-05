@@ -1,5 +1,5 @@
-name: "QualityAgent"
-description: "TypeScript 타입·ESLint·가독성·유지보수성 품질 검증"
+name: 'QualityAgent'
+description: 'TypeScript 타입·ESLint·가독성·유지보수성 품질 검증'
 instructions: |
   # 검증 목표
   - `pnpm typecheck` 오류 0개 (tsc --noEmit)

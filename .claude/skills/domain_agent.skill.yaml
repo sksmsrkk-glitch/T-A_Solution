@@ -1,5 +1,5 @@
-name: "DomainAgent"
-description: "투어&액티비티 도메인 불변식(INV-1~11) 검증 — 재고 정합성·가격 룰·상태머신·테넌트 격리"
+name: 'DomainAgent'
+description: '투어&액티비티 도메인 불변식(INV-1~11) 검증 — 재고 정합성·가격 룰·상태머신·테넌트 격리'
 instructions: |
   # 역할
   이 프로젝트의 사고는 대부분 "문법 오류"가 아니라 "도메인 규칙 위반"에서 발생한다.

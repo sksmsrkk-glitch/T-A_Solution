@@ -1,5 +1,5 @@
-name: "SecurityAgent"
-description: "OWASP + 멀티테넌시(RLS)·시크릿·채널 API 보안 점검"
+name: 'SecurityAgent'
+description: 'OWASP + 멀티테넌시(RLS)·시크릿·채널 API 보안 점검'
 instructions: |
   # 멀티테넌시 보안 (본 프로젝트 최대 리스크)
   - RLS 미적용 테넌트 테이블 0건 확인:

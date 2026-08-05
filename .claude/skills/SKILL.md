@@ -11,16 +11,16 @@ TypeScript + NestJS + Next.js + **Supabase** 기반 **투어&액티비티 모듈
 
 ## 스킬 구성
 
-| 스킬 | 파일 | 역할 |
-|---|---|---|
-| ClaudeInit | `claude_init.skill.yaml` | 세션 시작 시 설정 자동 로드 |
-| DevAgent | `dev_agent.skill.yaml` | 기능 개발·리팩터링 |
-| DomainAgent | `domain_agent.skill.yaml` | **도메인 불변식(INV-1~11) 검증 — 본 프로젝트 고유** |
-| SupabaseAgent | `supabase_agent.skill.yaml` | 마이그레이션·RLS 정책 설계·검증 |
-| TestAgent | `test_agent.skill.yaml` | Vitest/Supertest 테스트 작성·실행 |
-| QualityAgent | `quality_agent.skill.yaml` | ESLint/타입/가독성 품질 검증 |
-| SecurityAgent | `security_agent.skill.yaml` | OWASP·시크릿·RLS·멀티테넌시 보안 점검 |
-| LoopAgent | `loop_agent.skill.yaml` | **자동 수정 루프 운영 — 루프 엔지니어링** |
+| 스킬          | 파일                        | 역할                                                |
+| ------------- | --------------------------- | --------------------------------------------------- |
+| ClaudeInit    | `claude_init.skill.yaml`    | 세션 시작 시 설정 자동 로드                         |
+| DevAgent      | `dev_agent.skill.yaml`      | 기능 개발·리팩터링                                  |
+| DomainAgent   | `domain_agent.skill.yaml`   | **도메인 불변식(INV-1~11) 검증 — 본 프로젝트 고유** |
+| SupabaseAgent | `supabase_agent.skill.yaml` | 마이그레이션·RLS 정책 설계·검증                     |
+| TestAgent     | `test_agent.skill.yaml`     | Vitest/Supertest 테스트 작성·실행                   |
+| QualityAgent  | `quality_agent.skill.yaml`  | ESLint/타입/가독성 품질 검증                        |
+| SecurityAgent | `security_agent.skill.yaml` | OWASP·시크릿·RLS·멀티테넌시 보안 점검               |
+| LoopAgent     | `loop_agent.skill.yaml`     | **자동 수정 루프 운영 — 루프 엔지니어링**           |
 
 파이프라인 실행 순서: `dev → domain → test → quality → security` (실패 시 `loop` 진입)
 
@@ -71,17 +71,18 @@ Product (상품)
        └─ Unit (판매 단위 SKU — 성인/소인/그룹/차량 …)
 ```
 
-**핵심 판단 기준**: *"가격이 다르면 룰, 재고가 다르면 Option/슬롯"*
+**핵심 판단 기준**: _"가격이 다르면 룰, 재고가 다르면 Option/슬롯"_
+
 - 에버랜드 종일권/야간권 → 재고는 무한이지만 **입장 조건이 다르므로 Option 분리**
 - 부르즈 칼리파 시간대별 요금 → 같은 슬롯 재고, **가격만 다르므로 PriceRule(time band)**
 
 ### 재고 3유형 (단일 `AvailabilitySlot` 추상화)
 
-| 유형 | `availability_type` | capacity | 예시 |
-|---|---|---|---|
-| 타임슬롯 | `START_TIME` | 정수 | 난타 회차, 세션형 액티비티 |
-| 일자 | `OPENING_HOURS` | 정수 또는 NULL | 날짜지정 입장권 |
-| 오픈데이트 | `FREESALE` | **NULL(무제한)** + 유효기간 | 에버랜드 오픈데이트권 |
+| 유형       | `availability_type` | capacity                    | 예시                       |
+| ---------- | ------------------- | --------------------------- | -------------------------- |
+| 타임슬롯   | `START_TIME`        | 정수                        | 난타 회차, 세션형 액티비티 |
+| 일자       | `OPENING_HOURS`     | 정수 또는 NULL              | 날짜지정 입장권            |
+| 오픈데이트 | `FREESALE`          | **NULL(무제한)** + 유효기간 | 에버랜드 오픈데이트권      |
 
 ### 예약 상태머신 (2단계 커밋)
 
@@ -149,9 +150,11 @@ await db.transaction(async (tx) => {
 // apps/api/src/modules/pricing/season-price.controller.ts
 // 가드는 레이어별로 분리한다: 누구인가 → 어느 테넌트인가 → 그 모듈을 샀는가
 @UseGuards(AuthGuard, TenantScopeGuard, EntitlementGuard)
-@RequireModule('PRICE-SEASON')   // 미개통 테넌트는 여기서 403 — UI 숨김에 의존하지 않는다 (INV-6)
+@RequireModule('PRICE-SEASON') // 미개통 테넌트는 여기서 403 — UI 숨김에 의존하지 않는다 (INV-6)
 @Controller('pricing/seasons')
-export class SeasonPriceController { /* … */ }
+export class SeasonPriceController {
+  /* … */
+}
 ```
 
 ### RLS 정책 — 테넌트 테이블 생성 시 동시 작성 (INV-5)

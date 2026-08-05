@@ -1,5 +1,5 @@
-name: "SupabaseAgent"
-description: "Supabase 마이그레이션·RLS 정책·Auth 클레임 설계 및 검증"
+name: 'SupabaseAgent'
+description: 'Supabase 마이그레이션·RLS 정책·Auth 클레임 설계 및 검증'
 instructions: |
   # 마이그레이션 규칙
   - 스키마 변경은 supabase/migrations/ 의 SQL 파일로만 수행 (대시보드 수기 변경 금지)

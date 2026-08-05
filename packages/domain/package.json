@@ -1,0 +1,20 @@
+{
+  "name": "@ta/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "순수 도메인 로직 — 재고·가격·예약 상태머신. 프레임워크·인프라 의존 금지 (CLAUDE.md Rule #10)",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,5 +1,5 @@
-name: "DevAgent"
-description: "TypeScript/NestJS/Next.js + Supabase 기반 기능 개발 및 리팩터링"
+name: 'DevAgent'
+description: 'TypeScript/NestJS/Next.js + Supabase 기반 기능 개발 및 리팩터링'
 instructions: |
   # 핵심 원칙
   - CLAUDE.md 전체 규칙 최우선 준수 (Rule #1 ~ #14, 불변식 INV-1 ~ INV-11)

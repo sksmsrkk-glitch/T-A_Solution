@@ -1,0 +1,20 @@
+{
+  "name": "@ta/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "앱 간 공유 타입·API 계약 (포털 BFF / OCTO 게이트웨이 / 프론트)",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

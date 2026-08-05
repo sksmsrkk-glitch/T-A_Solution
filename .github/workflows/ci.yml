@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (typecheck · lint · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # CLAUDE.md Rule #12 — 이 명령 통과가 작업 완료 조건이다
+      - run: pnpm verify
+
+      - name: 포맷 검사
+        run: pnpm format:check
+
+  harness:
+    name: harness selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # 하네스 훅이 불변식 위반을 실제로 차단하는지 검증한다.
+      # 훅이 조용히 망가지면 그때부터 모든 가드가 무력화되므로 CI 에서 지킨다.
+      - run: node .claude/hooks/selftest.mjs
+
+  secrets:
+    name: 시크릿 유입 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # INV-5: service_role 키가 이력에 들어가면 회수가 어렵다.
+      - name: .env 커밋 및 키 패턴 검사
+        run: |
+          if git ls-files | grep -E '^\.env($|\.)' | grep -v '\.env\.example'; then
+            echo "::error::.env 파일이 커밋되어 있습니다"; exit 1
+          fi
+          if git grep -nIE 'NEXT_PUBLIC_[A-Z_]*(SERVICE_ROLE|SECRET|PRIVATE)' -- . ':!.claude' ':!.github'; then
+            echo "::error::NEXT_PUBLIC_* 에 비밀값이 노출되어 있습니다"; exit 1
+          fi
+          echo "시크릿 유입 없음"
