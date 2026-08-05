@@ -105,6 +105,18 @@ function checkTs(text, file) {
   // SQL 인젝션 — 문자열 보간 SQL
   add(BLOCK, text, /(execute|query|raw)\s*\(\s*[`'"][^`'"]*\$\{/, 'SQLI',
     '문자열 보간으로 SQL 을 조립하고 있습니다 — Drizzle 또는 파라미터 바인딩을 사용하세요.');
+
+  // 읽기 복제본 오용 (INV-12) — 복제본은 SELECT 전용이고 비동기 지연이 있다
+  add(BLOCK, text, /replicaDb\s*(\.\w+)*\s*\.\s*(insert|update|delete)\s*\(/, 'INV-12',
+    '읽기 복제본에 쓰기를 시도하고 있습니다 — 복제본은 SELECT 전용입니다. primaryDb 를 사용하세요.');
+  if (/replicaDb/.test(text) && /(held_count|booked_count|BookingState|price_snapshot)/.test(text)) {
+    WARN.push(`  [INV-12] 재고·예약 상태 코드에서 replicaDb 참조가 보입니다 — 복제 지연으로 오버부킹이 발생할 수 있습니다. 차감·전이·확정 판정은 primaryDb 여야 합니다.`);
+  }
+
+  // N+1 (Rule #16) — 루프 안 await 쿼리
+  if (/for\s*\(|\.forEach\s*\(/.test(text) && /await\s+(primaryDb|replicaDb|db)\s*\./.test(text)) {
+    WARN.push(`  [PERF] 반복문 안에서 쿼리를 await 하고 있을 수 있습니다 (N+1) — 배치 조회로 대체하세요.`);
+  }
 }
 
 /** ESLint 가 설치되어 있으면 실제 린트를 돌린다 (없으면 조용히 생략) */

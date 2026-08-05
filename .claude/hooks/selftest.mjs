@@ -62,7 +62,12 @@ const tsIgnore = fixture('ignore.ts', `// @ts-ignore\nconst x: string = 1;`);
 const r5 = run('verify_hook.mjs', { tool_input: { file_path: tsIgnore } });
 check('@ts-ignore 차단', r5.code === 2 && r5.out.includes('LOOP'), `exit=${r5.code}`);
 
-// 6. 하네스 자체 파일은 검사 제외
+// 6. INV-12 — 읽기 복제본에 쓰기 차단
+const tsReplica = fixture('inv12.ts', `await replicaDb.update(slot).set({ held: 1 });`);
+const r7 = run('verify_hook.mjs', { tool_input: { file_path: tsReplica } });
+check('INV-12 복제본 쓰기 차단', r7.code === 2 && r7.out.includes('INV-12'), `exit=${r7.code}`);
+
+// 7. 하네스 자체 파일은 검사 제외
 const r6 = run('verify_hook.mjs', { tool_input: { file_path: '.claude/CLAUDE.md' } });
 check('.claude/ 파일은 검사 제외', r6.code === 0, `exit=${r6.code}`);
 

@@ -26,6 +26,29 @@ instructions: |
       select relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
        where n.nspname='public' and c.relkind='r' and not c.relrowsecurity;
 
+  # 커넥션 전략 (성능)
+  - 배포는 Cloud Run(asia-northeast3) → **Supavisor session mode(5432) + 앱측 커넥션 풀**
+      · session mode 는 prepared statement 를 지원한다 (성능 손실 없음)
+      · Supabase 직결은 IPv6 기본이라 Cloud Run 이그레스에서 막힐 수 있다 (IPv4 애드온 없으면)
+      · **transaction mode(6543)는 prepared statement 미지원 — 상시 서버에서 사용 금지**
+  - 커넥션 풀 크기 × 컨테이너 인스턴스 수 ≤ 인스턴스 compute 등급의 커넥션 상한을 지킨다
+  - 마이그레이션은 DIRECT_URL(session/직결)로 실행한다 — transaction mode 에서는 DDL·advisory lock 이 불안정
+
+  # 읽기 복제본 (INV-12)
+  - 복제는 **비동기**라 지연이 존재하고, 복제본은 **SELECT 전용**이다
+  - 라우팅 규칙:
+      · 캘린더 조회·상품 탐색·리포트 → 복제본 허용
+      · availability/check(예약 직전)·재고 차감·상태 전이·정산 → **프라이머리 필수**
+  - Drizzle 클라이언트를 `primaryDb` / `replicaDb` 로 명시 분리하고, 도메인 서비스가 어느 쪽을
+    쓰는지 코드에서 바로 보이게 한다 (암묵적 라우팅 금지 — 오류 추적 불가)
+  - 트랜잭션 내부에서는 절대 복제본을 읽지 않는다
+
+  # 성능 (Rule #16)
+  - 새 쿼리 추가 시 `EXPLAIN (ANALYZE, BUFFERS)` 로 인덱스 사용 확인. Seq Scan 이면 인덱스 추가 또는 사유 기록
+  - 가용성 캘린더는 사전계산 프로젝션 테이블에서 읽는다 — 요청 시점 가격 룰 전수 해석 금지
+  - 재고 슬롯 갱신은 단건 PK 조건으로 (핫 로우 경합 최소화). 범위 UPDATE 금지
+  - pg_cron 잡은 동시 8개 이하, 개별 10분 이하로 유지 (Supabase 권고)
+
   # 키 / 접근 경로 규칙
   - anon key: 브라우저 노출 가능. 반드시 RLS 로 보호되는 경로에서만 사용
   - service_role key: 서버 전용. 클라이언트 번들·NEXT_PUBLIC_*·로그·에러 응답에 절대 노출 금지
