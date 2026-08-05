@@ -29,3 +29,42 @@ export class CurrencyMismatchError extends DomainError {
     super(`통화가 다릅니다: ${left} ≠ ${right}. 환산 후 연산하십시오.`);
   }
 }
+
+/** 로컬 날짜·시각·타임존 형식 위반 — INV-8 */
+export class InvalidLocalTimeError extends DomainError {
+  readonly code = 'INVALID_LOCAL_TIME';
+}
+
+/**
+ * 적용 가능한 가격 룰이 하나도 없음 — INV-4
+ *
+ * 0원으로 넘어가지 않고 반드시 실패시킨다. 가격 없는 판매는 매출 누락이자
+ * 정산 분쟁이며, 조용히 통과하면 발견이 몇 달 뒤로 밀린다.
+ */
+export class NoPriceRuleError extends DomainError {
+  readonly code = 'NO_PRICE_RULE';
+}
+
+/** 전이표에 없는 예약 상태 전이 시도 — INV-7 */
+export class IllegalTransitionError extends DomainError {
+  readonly code = 'ILLEGAL_TRANSITION';
+
+  constructor(
+    readonly from: string,
+    readonly to: string,
+  ) {
+    super(`허용되지 않은 상태 전이입니다: ${from} → ${to} — INV-7`);
+  }
+}
+
+/** 전이는 표에 있으나 가드 조건 미충족 (홀드 만료·과거 이용일 등) — INV-7 */
+export class TransitionGuardError extends DomainError {
+  readonly code = 'TRANSITION_GUARD_FAILED';
+
+  constructor(
+    readonly guard: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
