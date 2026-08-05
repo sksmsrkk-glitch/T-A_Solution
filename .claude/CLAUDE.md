@@ -133,7 +133,18 @@ UPDATE availability_slot
 
 ### INV-7. 예약 상태 전이는 전이표 밖으로 못 나간다
 
-`ON_HOLD → CONFIRMED|PENDING|EXPIRED`, `PENDING → CONFIRMED|REJECTED`, `CONFIRMED → REDEEMED|CANCELLED|NO_SHOW`. 상태 변경은 단일 서비스(BookingStateService)만 수행하고 **모든 전이는 `BookingLog`에 기록**한다.
+전이표는 `docs/03 §3.1` 이 기준이며, 구현은 `packages/domain/src/booking.ts` 의 `BOOKING_TRANSITIONS` **한 곳**에만 존재한다.
+
+| From                                                  | 허용 To                                                                      |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `ON_HOLD`                                             | `ON_HOLD`(연장) · `CONFIRMED` · `PENDING` · `EXPIRED` · `CANCELLED`(release) |
+| `PENDING`                                             | `CONFIRMED` · `REJECTED` · `CANCELLED`                                       |
+| `CONFIRMED`                                           | `REDEEMED` · `CANCELLED` · `NO_SHOW`                                         |
+| `REJECTED`·`EXPIRED`·`CANCELLED`·`REDEEMED`·`NO_SHOW` | (종단 — 이탈 불가)                                                           |
+
+가드: 만료된 홀드는 확정·연장 불가(미처리 만료 홀드를 확정하면 오버부킹), 이용일이 지난 예약은 취소 불가(GYG `BOOKING_IN_PAST` 준용). 단 **만료 배치의 `EXPIRED` 전이는 항상 허용**한다 — 막으면 재고가 영구 점유된다.
+
+상태 변경은 단일 서비스(BookingStateService)만 수행하고 **모든 전이는 `BookingLog`에 기록**한다.
 
 ### INV-8. 타임존 — 시설 로컬 시간 보존
 
